@@ -12,4 +12,9 @@ Pillow
 wordcloud
 nltk
 openpyxl
+langchain_groq
+langchain_openai
+faiss-cpu
+openai
+groq
 
