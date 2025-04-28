@@ -8,13 +8,15 @@ bertopic
 corextopic
 scikit-learn
 sentence-transformers
+nltk
 Pillow
 wordcloud
-nltk
 langchain
 langchain-openai
 langchain-groq
-openpyxl
 faiss-cpu
+openai
+groq
+
 
 
