@@ -110,7 +110,7 @@ def create_charts(df):
     if 'City' in df.columns:
         city_counts = df['City'].value_counts()
         if len(city_counts) > 10:
-            city_counts = city_counts.head(10).append(pd.Series(city_counts[10:].sum(), index=['Others']))
+            city_counts = pd.concat([city_counts.head(10), pd.Series(city_counts[10:].sum(), index=['Others'])])
         fig1 = px.pie(values=city_counts.values, names=city_counts.index, title='Companies by City', hole=0.4)
         st.plotly_chart(fig1)
 
