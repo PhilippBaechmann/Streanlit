@@ -11,12 +11,12 @@ sentence-transformers
 Pillow
 wordcloud
 nltk
+faiss-cpu
 langchain
+langchain-community
 langchain-openai
 langchain-groq
-langchain-community
-faiss-cpu
-openai
+python-dotenv
 
 
 
