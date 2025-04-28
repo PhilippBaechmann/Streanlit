@@ -20,7 +20,7 @@ import nltk
 from nltk.corpus import stopwords
 import re
 import warnings
-from langchain.vectorstores import FAISS
+from langchain_community.vectorstores import FAISS
 from langchain.chains import ConversationalRetrievalChain
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.docstore.document import Document

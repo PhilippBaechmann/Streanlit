@@ -17,6 +17,8 @@ langchain-groq
 faiss-cpu
 openai
 groq
+langchain
+langchain-community
 
 
 
