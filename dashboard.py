@@ -138,7 +138,7 @@ def setup_rag(df):
     vectorstore = FAISS.from_documents(documents, embeddings)
 
     if USE_GROQ:
-        llm = ChatGroq(model="mixtral-8x7b", api_key=os.getenv("GROQ_API_KEY"))
+        llm = ChatGroq(model="mixtral-8x7b-32768", api_key=os.getenv("GROQ_API_KEY"))
     else:
         llm = ChatOpenAI(model="gpt-3.5-turbo", api_key=os.getenv("OPENAI_API_KEY"))
 
