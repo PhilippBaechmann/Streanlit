@@ -14,8 +14,9 @@ nltk
 langchain
 langchain-openai
 langchain-groq
+langchain-community
 faiss-cpu
-tiktoken
+openai
 
 
 

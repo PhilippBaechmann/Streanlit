@@ -28,7 +28,6 @@ from langchain.embeddings.sentence_transformer import SentenceTransformerEmbeddi
 from langchain.chains import ConversationalRetrievalChain
 from langchain.docstore.document import Document
 
-# Try to import Groq, fall back to OpenAI if Groq is not available
 try:
     from langchain_groq import ChatGroq
     USE_GROQ = True
@@ -63,7 +62,7 @@ def load_data():
             df['Company Age'] = current_year - df['Founded Year']
         return df
     except Exception as e:
-        st.error(f"Error loading data: {str(e)}")
+        st.error(f"⚠️ Error loading data: {str(e)}. Please upload the file manually below.")
         return pd.DataFrame()
 
 if 'chat_history' not in st.session_state:
@@ -110,9 +109,8 @@ def main():
     df = load_data()
 
     if df.empty:
-        st.warning("Please upload a valid Excel file containing the Irish CHGFs data.")
-        uploaded_file = st.file_uploader("Upload your Excel file", type=['xlsx', 'xls'])
-        if uploaded_file:
+        uploaded_file = st.file_uploader("Upload your cleaned CHGF Excel file (.xlsx)")
+        if uploaded_file is not None:
             df = pd.read_excel(uploaded_file)
 
     if not df.empty:
