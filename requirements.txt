@@ -11,10 +11,10 @@ sentence-transformers
 Pillow
 wordcloud
 nltk
+langchain
+langchain-openai
+langchain-groq
 openpyxl
-langchain_groq
-langchain_openai
 faiss-cpu
-openai
-groq
+
 
