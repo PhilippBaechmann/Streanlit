@@ -11,3 +11,5 @@ sentence-transformers
 Pillow
 wordcloud
 nltk
+openpyxl
+
