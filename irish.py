@@ -17,6 +17,9 @@ import io
 from PIL import Image
 from wordcloud import WordCloud
 import nltk
+import nltk
+nltk.download('punkt')
+nltk.download('stopwords')
 from nltk.corpus import stopwords
 import re
 import warnings
@@ -98,13 +101,27 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Download necessary nltk resources
 @st.cache_resource
 def download_nltk_resources():
-    nltk.download('stopwords')
-    nltk.download('punkt')
+    try:
+        nltk.download('punkt', quiet=True)
+        nltk.download('stopwords', quiet=True)
+        # Add any other NLTK resources you might be using
+    except Exception as e:
+        st.warning(f"Failed to download NLTK resources: {str(e)}")
 
+# Call this function early in your code
 download_nltk_resources()
+
+# Modify your tokenization code to handle potential errors
+try:
+    words = nltk.word_tokenize(combined_description.lower())
+except LookupError:
+    st.error("NLTK tokenizer resources are missing. Please ensure 'punkt' package is downloaded.")
+    words = combined_description.lower().split()  # Fallback to basic splitting
+except Exception as e:
+    st.error(f"Error during tokenization: {str(e)}")
+    words = []
 
 # Custom CSS for styling
 st.markdown("""
