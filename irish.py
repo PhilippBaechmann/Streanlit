@@ -17,7 +17,6 @@ import io
 from PIL import Image
 from wordcloud import WordCloud
 import nltk
-from nltk.corpus import stopwords
 import re
 import warnings
 from langchain_community.vectorstores import FAISS
@@ -26,6 +25,7 @@ from langchain.text_splitter import CharacterTextSplitter
 from langchain.docstore.document import Document
 from langchain_community.embeddings import SentenceTransformerEmbeddings
 import os
+import datetime
 
 # First define NLTK resource download function
 @st.cache_resource
@@ -54,9 +54,18 @@ def download_nltk_resources():
         
 # Define safe tokenize function
 def safe_tokenize(text):
+    if text is None:
+        print("Warning: Text is None")
+        return []
+        
+    if not isinstance(text, str):
+        print(f"Warning: Text is not a string, but {type(text)}")
+        return []
+        
     try:
         return nltk.word_tokenize(text)
     except Exception as e:
+        print(f"NLTK tokenization failed: {str(e)}. Using simple tokenization instead.")
         # Simple fallback tokenizer
         import re
         return re.findall(r'\b\w+\b', text.lower())
@@ -87,9 +96,253 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Show NLTK paths to debug
-st.write(f"NLTK data path: {nltk.data.path}")
+# Enhanced CSS for white background, black text, and improved UI
+st.markdown("""
+<style>
+    /* Global reset for consistent appearance */
+    * {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    /* White background and black text */
+    .main, .block-container, .stApp {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
+    
+    /* Make page stretch across 16:9 screen */
+    .block-container {
+        padding-left: 1rem;
+        padding-right: 1rem;
+        max-width: 100% !important;
+    }
+    
+    /* Make all text black */
+    p, li, div, label, span, .stMarkdown, .stText, table, th, td {
+        color: #000000 !important;
+    }
+    
+    /* Header styling */
+    h1 {
+        color: #103778 !important;
+        font-weight: 700;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #103778;
+        margin-bottom: 20px;
+    }
+    
+    h2 {
+        color: #103778 !important;
+        font-weight: 600;
+        padding-bottom: 5px;
+        border-bottom: 1px solid #e6e6e6;
+        margin-bottom: 15px;
+    }
+    
+    h3 {
+        color: #103778 !important;
+        font-weight: 500;
+        margin-top: 20px;
+        margin-bottom: 10px;
+    }
+    
+    /* Improved sidebar styling */
+    [data-testid="stSidebar"] {
+        background-color: #f8f9fa !important;
+        border-right: 1px solid #e6e6e6;
+    }
+    
+    [data-testid="stSidebar"] > div:first-child {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
+    
+    [data-testid="stSidebar"] .stTitle {
+        color: #103778 !important;
+        font-weight: 600;
+        padding-left: 1rem;
+    }
+    
+    /* Button styling */
+    .stButton > button {
+        background-color: #103778 !important;
+        color: white !important;
+        border-radius: 4px;
+        border: none;
+        padding: 0.5rem 1rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+    
+    .stButton > button:hover {
+        background-color: #1e56a0 !important;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+    
+    /* Card styling */
+    .metric-card {
+        background-color: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+        text-align: center;
+        transition: all 0.3s;
+        border-left: 4px solid #103778;
+        margin-bottom: 1rem;
+    }
+    
+    .metric-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+    }
+    
+    /* Improve dataframe styling */
+    .stDataFrame {
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+    
+    .stDataFrame [data-testid="stDataFrameResizable"] {
+        border: none !important;
+    }
+    
+    .stDataFrame th {
+        background-color: #f1f5f9 !important;
+        color: #000000 !important;
+        font-weight: 600;
+        text-align: left;
+        padding: 10px !important;
+    }
+    
+    .stDataFrame td {
+        color: #000000 !important;
+        padding: 8px !important;
+    }
+    
+    /* Tab styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 2px;
+        background-color: #f8f9fa;
+        padding: 0px 10px;
+        border-radius: 8px 8px 0 0;
+        border: 1px solid #e6e6e6;
+        border-bottom: none;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        white-space: pre-wrap;
+        background-color: #f8f9fa;
+        border-radius: 8px 8px 0 0;
+        border: none;
+        padding-top: 10px;
+        padding-bottom: 10px;
+        color: #000000 !important;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background-color: #103778 !important;
+        color: white !important;
+        font-weight: 500;
+    }
+    
+    .stTabs [data-baseweb="tab-panel"] {
+        background-color: #ffffff;
+        border-radius: 0 0 8px 8px;
+        border: 1px solid #e6e6e6;
+        border-top: none;
+        padding: 20px;
+    }
+    
+    /* Expander styling */
+    .streamlit-expanderHeader {
+        background-color: #f8fafc;
+        border-radius: 4px;
+        padding: 10px !important;
+        font-weight: 500;
+        color: #000000 !important;
+        border: 1px solid #e6e6e6;
+    }
+    
+    .streamlit-expanderContent {
+        background-color: #ffffff;
+        border-radius: 0 0 4px 4px;
+        border: 1px solid #e6e6e6;
+        border-top: none;
+        padding: 15px;
+    }
+    
+    /* Chart containers */
+    .chart-container {
+        background-color: #ffffff;
+        border-radius: 8px;
+        padding: 15px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        margin-bottom: 20px;
+        border: 1px solid #e6e6e6;
+    }
+    
+    /* Chat styling */
+    .chat-container {
+        border-radius: 10px;
+        margin-bottom: 10px;
+        padding: 15px;
+    }
+    
+    .user-message {
+        background-color: #e1f5fe;
+        border-left: 5px solid #039be5;
+    }
+    
+    .bot-message {
+        background-color: #f0f4c3;
+        border-left: 5px solid #afb42b;
+    }
+    
+    /* Inputs styling */
+    .stTextInput input, .stTextArea textarea, .stSelectbox, .stMultiSelect {
+        border-radius: 4px;
+        border: 1px solid #cbd5e0;
+    }
+    
+    .stTextInput input:focus, .stTextArea textarea:focus {
+        border-color: #103778;
+        box-shadow: 0 0 0 2px rgba(16, 55, 120, 0.2);
+    }
+    
+    /* Make the chat input area larger */
+    .stTextArea textarea {
+        min-height: 100px !important;
+    }
+    
+    /* Improved section headers */
+    .section-header {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        border-left: 5px solid #103778;
+    }
+    
+    /* Company cards */
+    .company-card {
+        background-color: white;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 15px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        border-top: 4px solid #4e8d7c;
+    }
+    
+    /* App container */
+    .app-container {
+        padding: 0 2rem;
+    }
+</style>
+""", unsafe_allow_html=True)
 
+# Show NLTK paths to verify
 try:
     nltk.data.find('tokenizers/punkt')
     st.success("✅ Punkt tokenizer is available!")
@@ -101,139 +354,6 @@ try:
     st.success("✅ Stopwords corpus is available!")
 except LookupError as e:
     st.error(f"❌ Stopwords corpus is NOT available: {str(e)}")
-
-# Add your CSS styling and the rest of your code here
-st.markdown("""
-<style>
-    .block-container {
-        padding-left: 1rem;
-        padding-right: 1rem;
-        max-width: 100% !important;
-    }
-    /* Make main page text black */
-    .main, .block-container, body, p, span, label, div {
-        color: #000000 !important;
-    }
-    
-    /* Custom tabs styling */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 1px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        white-space: pre-wrap;
-        background-color: #f0f2f6;
-        border-radius: 4px 4px 0 0;
-        gap: 1px;
-        padding-top: 10px;
-        padding-bottom: 10px;
-    }
-    .stTabs [aria-selected="true"] {
-        background-color: #4e8d7c !important;
-        color: white !important;
-    }
-    
-    /* Chat styling */
-    .chat-container {
-        border-radius: 10px;
-        margin-bottom: 10px;
-        padding: 15px;
-    }
-    .user-message {
-        background-color: #e1f5fe;
-        border-left: 5px solid #039be5;
-    }
-    .bot-message {
-        background-color: #f0f4c3;
-        border-left: 5px solid #afb42b;
-    }
-    
-    /* Make the chat input area larger */
-    .stTextArea textarea {
-        min-height: 100px !important;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# Initialize session state and continue with your application...
-
-@st.cache_resource
-def download_nltk_resources():
-    import os
-    import nltk
-    
-    try:
-        # Specify a download directory (optional)
-        # nltk.data.path.append('/path/to/nltk_data')  # Uncomment if needed
-        
-        # Check if punkt exists, if not download it
-        try:
-            nltk.data.find('tokenizers/punkt')
-            st.success("NLTK punkt tokenizer already downloaded")
-        except LookupError:
-            nltk.download('punkt', quiet=False)
-            st.success("Downloaded NLTK punkt tokenizer")
-            
-        # Check if stopwords exists, if not download it
-        try:
-            nltk.data.find('corpora/stopwords')
-            st.success("NLTK stopwords already downloaded")
-        except LookupError:
-            nltk.download('stopwords', quiet=False)
-            st.success("Downloaded NLTK stopwords")
-            
-        # Print NLTK data path for debugging
-        st.write(f"NLTK data path: {nltk.data.path}")
-    except Exception as e:
-        st.error(f"Failed to download NLTK resources: {str(e)}")
-
-def safe_tokenize(text):
-    try:
-        return nltk.word_tokenize(text)
-    except Exception as e:
-        st.warning(f"NLTK tokenization failed: {str(e)}. Using simple tokenization instead.")
-        # Simple fallback tokenizer
-        import re
-        return re.findall(r'\b\w+\b', text.lower())
-
-# Then use it in your code
-words = safe_tokenize(combined_description.lower())
-
-# Custom CSS for styling
-st.markdown("""
-<style>
-    .main {
-        background-color: #ffffff;
-    }
-    .stApp {
-        max-width: 1200px;
-        margin: 0 auto;
-    }
-    h1, h2, h3 {
-        color: #2c3e50;
-    }
-    .stButton button {
-        background-color: #4e8d7c;
-        color: white;
-    }
-    .stSidebar {
-        background-color: #eaeaea;
-    }
-    .metric-card {
-        background-color: white;
-        border-radius: 5px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        padding: 20px;
-        text-align: center;
-    }
-    .header-container {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 20px;
-    }
-</style>
-""", unsafe_allow_html=True)
 
 # Initialize session state for chat history
 if 'chat_history' not in st.session_state:
@@ -253,16 +373,20 @@ def load_data():
         # Fill missing Topic values with "Uncategorized"
         if 'Topic' in df.columns:
             df['Topic'] = df['Topic'].fillna('Uncategorized')
+        # Add current year for company age calculation if "Founded Year" exists
+        if 'Founded Year' in df.columns:
+            current_year = datetime.datetime.now().year
+            df['Company Age'] = current_year - df['Founded Year']
         return df
     except Exception as e:
         st.error(f"Error loading data: {str(e)}")
         return pd.DataFrame()
 
-# Function to create downloadable link
+# Function to create downloadable link with improved styling
 def get_download_link(df, filename, text):
     csv = df.to_csv(index=False)
     b64 = base64.b64encode(csv.encode()).decode()
-    href = f'<a href="data:file/csv;base64,{b64}" download="{filename}">{text}</a>'
+    href = f'<a href="data:file/csv;base64,{b64}" download="{filename}" style="text-decoration:none;background-color:#103778;color:white;padding:8px 12px;border-radius:4px;font-weight:500;display:inline-block;margin-top:10px;">{text} 📥</a>'
     return href
 
 # Topic modeling with BERTopic
@@ -317,21 +441,28 @@ def preprocess_text(text):
 
 # Function to generate wordcloud
 def generate_wordcloud(text, title=None):
+    from nltk.corpus import stopwords
     stopwords_set = set(stopwords.words('english'))
     wordcloud = WordCloud(
-        width=800, 
-        height=400, 
+        width=1000, 
+        height=500, 
         background_color='white',
+        colormap='viridis',  # Using a more visually appealing colormap
         stopwords=stopwords_set,
-        min_font_size=10
+        min_font_size=10,
+        max_font_size=150,
+        random_state=42,
+        contour_width=1,
+        contour_color='steelblue'
     ).generate(text)
     
-    fig, ax = plt.subplots(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=(12, 6))
     ax.imshow(wordcloud, interpolation='bilinear')
     ax.axis('off')
     if title:
-        ax.set_title(title, fontsize=15)
+        ax.set_title(title, fontsize=18, fontweight='bold', color='#103778')
     
+    plt.tight_layout()
     return fig
 
 # Function to create city distribution pie chart
@@ -365,6 +496,13 @@ def create_city_pie_chart(df):
         margin=dict(t=50, b=20, l=20, r=20)
     )
     
+    fig.update_traces(
+        textposition='inside', 
+        textinfo='percent+label',
+        textfont=dict(size=14, color='white'),
+        marker=dict(line=dict(color='#ffffff', width=2))
+    )
+    
     return fig
 
 # Function to create company age distribution chart
@@ -372,26 +510,83 @@ def create_company_age_chart(df):
     if 'Founded Year' not in df.columns:
         return None
     
-    current_year = 2023  # Using a fixed year for the demo
+    current_year = datetime.datetime.now().year
     
     # Create age groups for better visualization
-    df['Age'] = current_year - df['Founded Year']
+    df['Age Group'] = pd.cut(
+        current_year - df['Founded Year'], 
+        bins=[0, 3, 5, 10, 15, 20, 100],
+        labels=['0-3 years', '3-5 years', '5-10 years', '10-15 years', '15-20 years', '20+ years']
+    )
     
-    # Create histogram
-    fig = px.histogram(
-        df,
-        x='Age',
-        nbins=20,
+    age_distribution = df['Age Group'].value_counts().sort_index()
+    
+    # Create bar chart
+    fig = px.bar(
+        x=age_distribution.index,
+        y=age_distribution.values,
+        color=age_distribution.index,
+        labels={'x': 'Company Age', 'y': 'Number of Companies'},
         title='Company Age Distribution',
-        color_discrete_sequence=['#4e8d7c']
+        color_discrete_sequence=px.colors.qualitative.Bold
     )
     
     fig.update_layout(
-        plot_bgcolor='white',
-        xaxis_title='Company Age (Years)',
-        yaxis_title='Number of Companies',
         title_font=dict(size=20, color='#103778'),
-        font=dict(color='#000000', size=14)
+        font=dict(color='#000000', size=14),
+        xaxis_title_font=dict(size=16),
+        yaxis_title_font=dict(size=16),
+        plot_bgcolor='white',
+        xaxis=dict(showgrid=False),
+        yaxis=dict(showgrid=True, gridcolor='#f0f0f0'),
+        margin=dict(t=50, b=20, l=20, r=20)
+    )
+    
+    return fig
+
+# Function to create foundation year timeline
+def create_foundation_year_timeline(df):
+    if 'Founded Year' not in df.columns:
+        return None
+    
+    # Group by foundation year
+    yearly_counts = df['Founded Year'].value_counts().sort_index()
+    
+    # Create line chart
+    fig = px.line(
+        x=yearly_counts.index,
+        y=yearly_counts.values,
+        markers=True,
+        labels={'x': 'Year', 'y': 'Number of Companies Founded'},
+        title='Company Foundations Over Time',
+    )
+    
+    # Add area under the line
+    fig.add_traces(
+        go.Scatter(
+            x=yearly_counts.index,
+            y=yearly_counts.values,
+            fill='tozeroy',
+            fillcolor='rgba(16, 55, 120, 0.2)',
+            line=dict(color='rgba(0, 0, 0, 0)'),
+            showlegend=False
+        )
+    )
+    
+    fig.update_layout(
+        title_font=dict(size=20, color='#103778'),
+        font=dict(color='#000000', size=14),
+        xaxis_title_font=dict(size=16),
+        yaxis_title_font=dict(size=16),
+        plot_bgcolor='white',
+        xaxis=dict(showgrid=False),
+        yaxis=dict(showgrid=True, gridcolor='#f0f0f0'),
+        margin=dict(t=50, b=20, l=20, r=20)
+    )
+    
+    fig.update_traces(
+        line=dict(color='#103778', width=3),
+        marker=dict(size=8, color='#103778')
     )
     
     return fig
@@ -495,21 +690,50 @@ def find_potential_competitors(company_name, company_description, retrieval_chai
 
 # Main application
 def main():
-    # App title and description
-    st.title("Irish Consistent High Growth Firms (CHGFs) Analysis - 2023")
+    # App title and header with logo
+    col1, col2 = st.columns([1, 5])
+    
+    with col1:
+        # Create a simplified Irish flag icon
+        irish_flag = """
+        <div style="background-color: white; padding: 10px; border-radius: 5px; text-align: center;">
+            <div style="display: flex; height: 60px;">
+                <div style="background-color: #169b62; flex: 1;"></div>
+                <div style="background-color: white; flex: 1;"></div>
+                <div style="background-color: #ff883e; flex: 1;"></div>
+            </div>
+        </div>
+        """
+        st.markdown(irish_flag, unsafe_allow_html=True)
+    
+    with col2:
+        st.title("Irish Consistent High Growth Firms (CHGFs) Analysis - 2023")
     
     st.markdown("""
-    This application provides interactive analysis and visualization of Irish companies identified as 
-    Consistent High Growth Firms (CHGFs) in 2023. The dashboard includes data exploration tools,
-    topic modeling with BERTopic and CorEx, and advanced filtering capabilities.
-    """)
+    <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 5px solid #103778;">
+        <p style="margin: 0; font-size: 16px;">
+        This application provides interactive analysis and visualization of Irish companies identified as 
+        <strong>Consistent High Growth Firms (CHGFs)</strong> in 2023. The dashboard includes data exploration tools,
+        topic modeling with <strong>BERTopic</strong> and <strong>CorEx</strong>, and advanced filtering capabilities.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
     
     # Load data
     df = load_data()
     
     if df.empty:
         st.warning("Please upload a valid Excel file containing the Irish CHGFs data.")
-        uploaded_file = st.file_uploader("Upload Excel file", type=['xlsx', 'xls'])
+        
+        # Styled file uploader
+        st.markdown("""
+        <div style="background-color: #f0f9ff; padding: 20px; border-radius: 8px; border: 1px dashed #3b82f6;">
+            <h3 style="color: #1e40af; margin-top: 0;">Upload Dataset</h3>
+            <p>Upload your Excel file with Irish CHGFs data to begin analysis.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        uploaded_file = st.file_uploader("", type=['xlsx', 'xls'])
         if uploaded_file is not None:
             try:
                 df = pd.read_excel(uploaded_file)
@@ -521,11 +745,11 @@ def main():
     if not df.empty:
         # Create tabs for the different sections
         tabs = st.tabs([
-            "Dashboard",
-            "Company Explorer",
-            "Topic Analysis",
-            "Advanced Topic Modeling",
-            "Competitor Analysis"
+            "📊 Dashboard",
+            "🔍 Company Explorer",
+            "🏷️ Topic Analysis",
+            "🧠 Advanced Topic Modeling",
+            "🥇 Competitor Analysis"
         ])
         
         # Initialize the retrieval chain if not already done
@@ -534,7 +758,12 @@ def main():
                 st.session_state.retrieval_chain = setup_rag_for_competitor_analysis(df)
         
         # Sidebar for global filters
-        st.sidebar.title("Global Filters")
+        st.sidebar.markdown("""
+        <div style="text-align: center; padding: 10px 0;">
+            <h2 style="color: #103778; margin-bottom: 5px;">Global Filters</h2>
+            <div style="height: 2px; background-color: #103778; margin-bottom: 20px;"></div>
+        </div>
+        """, unsafe_allow_html=True)
         
         # Display all available topics for filtering
         if 'Topic' in df.columns:
@@ -554,7 +783,7 @@ def main():
             df_filtered = df
             st.sidebar.warning("No Topic column found in the dataset.")
         
-        # City filter if available
+        # City filter
         if 'City' in df.columns:
             all_cities = sorted(df['City'].unique())
             selected_cities = st.sidebar.multiselect(
@@ -567,76 +796,147 @@ def main():
             if selected_cities:
                 df_filtered = df_filtered[df_filtered['City'].isin(selected_cities)]
         
+        # Company age filter (if Founded Year exists)
+        if 'Founded Year' in df.columns:
+            current_year = datetime.datetime.now().year
+            min_age = 0
+            max_age = int(current_year - df['Founded Year'].min())
+            
+            age_range = st.sidebar.slider(
+                "Company Age Range (years)",
+                min_value=min_age,
+                max_value=max_age,
+                value=(min_age, max_age)
+            )
+            
+            # Apply age filter
+            min_year = current_year - age_range[1]
+            max_year = current_year - age_range[0]
+            df_filtered = df_filtered[(df_filtered['Founded Year'] >= min_year) & (df_filtered['Founded Year'] <= max_year)]
+        
         # Company name search
         company_search = st.sidebar.text_input("Search by Company Name")
         if company_search:
             df_filtered = df_filtered[df_filtered['Company Name'].str.contains(company_search, case=False, na=False)]
-        
-        # Show filtered data count
-        st.sidebar.write(f"Showing {len(df_filtered)} out of {len(df)} companies")
+# Show filtered data count with style
+        st.sidebar.markdown(f"""
+        <div style="background-color: #eef2ff; padding: 10px; border-radius: 5px; margin-top: 15px; text-align: center;">
+            <span style="font-weight: 600;">Showing {len(df_filtered)}</span> out of 
+            <span style="font-weight: 600;">{len(df)}</span> companies
+        </div>
+        """, unsafe_allow_html=True)
         
         # Download filtered data
         if not df_filtered.empty:
+            st.sidebar.markdown("<div style='text-align: center; margin-top: 15px;'>", unsafe_allow_html=True)
             st.sidebar.markdown(
-                get_download_link(df_filtered, 'filtered_irish_chgfs.csv', 'Download Filtered Data (CSV)'),
+                get_download_link(df_filtered, 'filtered_irish_chgfs.csv', 'Download Filtered Data'),
                 unsafe_allow_html=True
             )
+            st.sidebar.markdown("</div>", unsafe_allow_html=True)
         
         # Dashboard Overview Tab
         with tabs[0]:
             st.header("Dashboard Overview")
             
             # Display key metrics
-            col1, col2, col3 = st.columns(3)
+            col1, col2, col3, col4 = st.columns(4)
             
             with col1:
                 st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
                 st.metric("Total Companies", f"{len(df)}")
+                st.markdown("<p style='color: #666; font-size: 14px;'>Total companies in the dataset</p>", unsafe_allow_html=True)
                 st.markdown("</div>", unsafe_allow_html=True)
             
             with col2:
                 st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
                 if 'Topic' in df.columns:
                     st.metric("Number of Topics", f"{len(df['Topic'].unique())}")
+                    st.markdown("<p style='color: #666; font-size: 14px;'>Distinct business categories</p>", unsafe_allow_html=True)
                 else:
                     st.metric("Number of Topics", "N/A")
                 st.markdown("</div>", unsafe_allow_html=True)
             
             with col3:
                 st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
+                if 'City' in df.columns:
+                    st.metric("Cities Represented", f"{len(df['City'].unique())}")
+                    st.markdown("<p style='color: #666; font-size: 14px;'>Unique locations</p>", unsafe_allow_html=True)
+                else:
+                    st.metric("Cities Represented", "N/A")
+                st.markdown("</div>", unsafe_allow_html=True)
+            
+            with col4:
+                st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
                 if 'Topic' in df.columns:
                     companies_with_topic = len(df[df['Topic'] != 'Uncategorized'])
                     topic_coverage = round((companies_with_topic / len(df)) * 100, 1)
                     st.metric("Topic Coverage", f"{topic_coverage}%")
+                    st.markdown("<p style='color: #666; font-size: 14px;'>Companies with assigned topics</p>", unsafe_allow_html=True)
                 else:
                     st.metric("Topic Coverage", "N/A")
                 st.markdown("</div>", unsafe_allow_html=True)
             
-            # Topic Distribution Chart
-            st.subheader("Topic Distribution")
-            if 'Topic' in df.columns:
-                topic_counts = df['Topic'].value_counts().reset_index()
-                topic_counts.columns = ['Topic', 'Count']
-                
-                fig = px.bar(
-                    topic_counts, 
-                    x='Topic', 
-                    y='Count',
-                    color='Topic',
-                    title='Distribution of Companies by Topic',
-                    height=500
-                )
-                fig.update_layout(xaxis_tickangle=-45)
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info("No Topic column found in the dataset.")
+            # Create two columns for charts
+            chart_col1, chart_col2 = st.columns(2)
             
-            # City Distribution Chart (if available)
-            if 'City' in df.columns:
-                st.subheader("City Distribution")
-                city_chart = create_city_pie_chart(df)
-                if city_chart:
-                    st.plotly_chart(city_chart, use_container_width=True)
+            with chart_col1:
+                # Topic Distribution Chart
+                st.subheader("Topic Distribution")
+                if 'Topic' in df.columns:
+                    topic_counts = df['Topic'].value_counts().reset_index()
+                    topic_counts.columns = ['Topic', 'Count']
+                    
+                    # Color palette for consistent colors
+                    color_discrete_sequence = px.colors.qualitative.Bold
+                    
+                    fig = px.bar(
+                        topic_counts, 
+                        x='Topic', 
+                        y='Count',
+                        color='Topic',
+                        title='Distribution of Companies by Topic',
+                        height=500,
+                        color_discrete_sequence=color_discrete_sequence
+                    )
+                    fig.update_layout(
+                        xaxis_tickangle=-45,
+                        plot_bgcolor='white',
+                        title_font=dict(size=20, color='#103778'),
+                        font=dict(color='#000000'),
+                        legend_title_font=dict(color='#000000'),
+                        xaxis=dict(
+                            title_font=dict(color='#000000'),
+                            tickfont=dict(color='#000000')
+                        ),
+                        yaxis=dict(
+                            title_font=dict(color='#000000'),
+                            tickfont=dict(color='#000000')
+                        )
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("No Topic column found in the dataset.")
+            
+            with chart_col2:
+                # City Distribution Chart (if available)
+                if 'City' in df.columns:
+                    st.subheader("City Distribution")
+                    city_chart = create_city_pie_chart(df)
+                    if city_chart:
+                        st.plotly_chart(city_chart, use_container_width=True)
+                else:
+                    # Word Cloud from all descriptions
+                    st.subheader("Word Cloud from Company Descriptions")
+                    if 'Description' in df.columns:
+                        combined_description = ' '.join(df['Description'].fillna('').astype(str))
+                        if combined_description.strip():
+                            wordcloud_fig = generate_wordcloud(combined_description)
+                            st.pyplot(wordcloud_fig)
+                        else:
+                            st.info("No description data available for word cloud generation.")
+                    else:
+                        st.info("No Description column found in the dataset.")
             
             # Company Age Chart (if available)
             if 'Founded Year' in df.columns:
@@ -644,22 +944,25 @@ def main():
                 age_chart = create_company_age_chart(df)
                 if age_chart:
                     st.plotly_chart(age_chart, use_container_width=True)
-            
-            # Word Cloud from all descriptions
-            st.subheader("Word Cloud from Company Descriptions")
-            if 'Description' in df.columns:
-                combined_description = ' '.join(df['Description'].fillna('').astype(str))
-                if combined_description.strip():
-                    wordcloud_fig = generate_wordcloud(combined_description)
-                    st.pyplot(wordcloud_fig)
-                else:
-                    st.info("No description data available for word cloud generation.")
-            else:
-                st.info("No Description column found in the dataset.")
+                    
+                # Foundation Year Timeline
+                st.subheader("Company Foundations Over Time")
+                timeline_chart = create_foundation_year_timeline(df)
+                if timeline_chart:
+                    st.plotly_chart(timeline_chart, use_container_width=True)
             
             # Display sample data
             st.subheader("Sample Data")
-            st.dataframe(df.head(10), use_container_width=True)
+            if len(df) > 0:
+                # Add styling to the sample data display
+                st.markdown("""
+                <div style="padding: 10px; background-color: #f8fafc; border-radius: 8px; margin-bottom: 10px;">
+                    <p style="margin: 0;">Preview of the first 10 entries in the dataset</p>
+                </div>
+                """, unsafe_allow_html=True)
+                st.dataframe(df.head(10), use_container_width=True)
+            else:
+                st.warning("The dataset is empty.")
         
         # Company Explorer Tab
         with tabs[1]:
@@ -669,8 +972,12 @@ def main():
             col1, col2 = st.columns([1, 2])
             
             with col1:
-                # Additional filters can be added here
-                st.subheader("Additional Filters")
+                # Additional filters with improved styling
+                st.markdown("""
+                <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                    <h3 style="color: #103778; margin-top: 0;">Filtering Options</h3>
+                </div>
+                """, unsafe_allow_html=True)
                 
                 # Sort options
                 sort_options = ["Company Name", "Topic"]
@@ -680,7 +987,11 @@ def main():
                     sort_options.append("City")
                     
                 sort_by = st.selectbox("Sort by", sort_options)
+                
+                # Improved radio button for sort order
+                st.markdown("<div style='margin-top: 10px;'>", unsafe_allow_html=True)
                 sort_order = st.radio("Sort order", ["Ascending", "Descending"])
+                st.markdown("</div>", unsafe_allow_html=True)
                 
                 # Apply sorting
                 if sort_order == "Ascending":
@@ -689,10 +1000,15 @@ def main():
                     df_filtered = df_filtered.sort_values(by=sort_by, ascending=False)
                 
             with col2:
-                # Display company count after filtering
-                st.subheader(f"Displaying {len(df_filtered)} Companies")
+                # Display company count after filtering with improved styling
+                st.markdown(f"""
+                <div style="background-color: #f0f9ff; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 5px solid #103778;">
+                    <h3 style="color: #103778; margin-top: 0;">Displaying {len(df_filtered)} Companies</h3>
+                </div>
+                """, unsafe_allow_html=True)
                 
-                # Create pagination
+                # Create pagination with improved styling
+                st.markdown("<div style='background-color: #f8fafc; padding: 15px; border-radius: 8px;'>", unsafe_allow_html=True)
                 items_per_page = st.slider("Companies per page", 5, 50, 10)
                 total_pages = max(1, (len(df_filtered) + items_per_page - 1) // items_per_page)
                 current_page = st.number_input("Page", min_value=1, max_value=total_pages, value=1)
@@ -702,98 +1018,176 @@ def main():
                 end_idx = min(start_idx + items_per_page, len(df_filtered))
                 
                 # Display pagination info
-                st.write(f"Showing {start_idx + 1} to {end_idx} of {len(df_filtered)} entries")
+                st.markdown(f"""
+                <div style="text-align: center; margin-top: 10px;">
+                    <p style="font-weight: 500;">Showing {start_idx + 1} to {end_idx} of {len(df_filtered)} entries</p>
+                </div>
+                """, unsafe_allow_html=True)
+                st.markdown("</div>", unsafe_allow_html=True)
             
-            # Display company cards
+            # Display company cards with improved styling
+            st.markdown("<div style='margin-top: 25px;'>", unsafe_allow_html=True)
             for idx, row in df_filtered.iloc[start_idx:end_idx].iterrows():
                 with st.expander(f"{row['Company Name']}", expanded=False):
                     col1, col2 = st.columns([1, 3])
                     
                     with col1:
-                        st.write("**Topic:**")
+                        st.markdown("<p style='font-weight: 600;'>Topic:</p>", unsafe_allow_html=True)
                         if 'Topic' in df.columns:
                             topic = row['Topic'] if not pd.isna(row['Topic']) else "Uncategorized"
-                            st.info(topic)
+                            st.markdown(f"""
+                            <div style="background-color: #e0f2fe; padding: 8px; border-radius: 4px; text-align: center;">
+                                <p style="margin: 0; color: #0c4a6e; font-weight: 500;">{topic}</p>
+                            </div>
+                            """, unsafe_allow_html=True)
                         else:
                             st.info("N/A")
                         
                         if 'City' in df.columns and not pd.isna(row['City']):
-                            st.write("**City:**")
-                            st.info(row['City'])
+                            st.markdown("<p style='font-weight: 600; margin-top: 10px;'>City:</p>", unsafe_allow_html=True)
+                            st.markdown(f"""
+                            <div style="background-color: #e0f7fa; padding: 8px; border-radius: 4px; text-align: center;">
+                                <p style="margin: 0; color: #006064; font-weight: 500;">{row['City']}</p>
+                            </div>
+                            """, unsafe_allow_html=True)
                         
                         if 'Founded Year' in df.columns and not pd.isna(row['Founded Year']):
-                            st.write("**Founded Year:**")
-                            st.info(str(int(row['Founded Year'])))
+                            st.markdown("<p style='font-weight: 600; margin-top: 10px;'>Founded Year:</p>", unsafe_allow_html=True)
+                            st.markdown(f"""
+                            <div style="background-color: #e8f5e9; padding: 8px; border-radius: 4px; text-align: center;">
+                                <p style="margin: 0; color: #1b5e20; font-weight: 500;">{int(row['Founded Year'])}</p>
+                            </div>
+                            """, unsafe_allow_html=True)
                     
                     with col2:
-                        st.write("**Description:**")
+                        st.markdown("<p style='font-weight: 600;'>Description:</p>", unsafe_allow_html=True)
                         if 'Description' in df.columns:
                             description = row['Description'] if not pd.isna(row['Description']) else "No description available."
-                            st.write(description)
+                            st.markdown(f"""
+                            <div style="background-color: #f8fafc; padding: 10px; border-radius: 4px; border-left: 3px solid #103778;">
+                                <p style="margin: 0;">{description}</p>
+                            </div>
+                            """, unsafe_allow_html=True)
                         else:
                             st.write("No description available.")
                     
-                    # Display other columns if available
+                    # Display other columns if available with improved styling
                     other_cols = [col for col in df.columns if col not in ['Company Name', 'Description', 'Topic', 'City', 'Founded Year']]
                     if other_cols:
-                        st.write("**Additional Information:**")
+                        st.markdown("<div style='margin-top: 15px;'>", unsafe_allow_html=True)
+                        st.markdown("<p style='font-weight: 600;'>Additional Information:</p>", unsafe_allow_html=True)
+                        
+                        # Create a table for additional info
+                        st.markdown("<table style='width: 100%; border-collapse: collapse;'>", unsafe_allow_html=True)
+                        
                         for col in other_cols:
-                            st.write(f"**{col}:** {row[col]}" if not pd.isna(row[col]) else f"**{col}:** N/A")
+                            value = row[col] if not pd.isna(row[col]) else "N/A"
+                            st.markdown(f"""
+                            <tr>
+                                <td style='padding: 8px; border-bottom: 1px solid #f1f5f9; font-weight: 600; width: 30%;'>{col}</td>
+                                <td style='padding: 8px; border-bottom: 1px solid #f1f5f9;'>{value}</td>
+                            </tr>
+                            """, unsafe_allow_html=True)
+                        
+                        st.markdown("</table>", unsafe_allow_html=True)
+                        st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
         
         # Topic Analysis Tab
         with tabs[2]:
             st.header("Topic Analysis")
             
             if 'Topic' in df.columns and 'Description' in df.columns:
-                # Topic selection for analysis
+                # Topic selection for analysis with improved styling
+                st.markdown("""
+                <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <h3 style="color: #103778; margin-top: 0; margin-bottom: 10px;">Select Topic to Analyze</h3>
+                </div>
+                """, unsafe_allow_html=True)
+                
                 topic_for_analysis = st.selectbox(
-                    "Select Topic to Analyze",
+                    "",
                     options=sorted(df['Topic'].unique())
                 )
                 
                 # Get companies with selected topic
                 topic_companies = df[df['Topic'] == topic_for_analysis]
                 
-                # Display topic information
-                st.subheader(f"Analysis of Topic: {topic_for_analysis}")
-                st.write(f"Number of companies in this topic: {len(topic_companies)}")
+                # Display topic information with improved styling
+                st.markdown(f"""
+                <div style="background-color: #f0f9ff; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 5px solid #103778;">
+                    <h2 style="color: #103778; margin-top: 0;">Analysis of Topic: {topic_for_analysis}</h2>
+                    <p style="font-size: 16px; margin-bottom: 0;">
+                        Number of companies in this topic: <strong>{len(topic_companies)}</strong>
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
                 
-                # Display companies in this topic
+                # Display companies in this topic with improved styling
                 with st.expander("Companies in this Topic", expanded=False):
                     st.dataframe(topic_companies[['Company Name', 'Description']], use_container_width=True)
+                    
+                    # Add download option for this specific topic
+                    st.markdown(
+                        get_download_link(topic_companies, f'irish_chgfs_{topic_for_analysis}.csv', f'Download {topic_for_analysis} Companies'),
+                        unsafe_allow_html=True
+                    )
                 
-                # Create word cloud for this topic
+                # Create word cloud for this topic with improved styling
                 st.subheader("Topic Word Cloud")
                 combined_description = ' '.join(topic_companies['Description'].fillna('').astype(str))
                 if combined_description.strip():
-                    wordcloud_fig = generate_wordcloud(combined_description, f"Word Cloud for {topic_for_analysis}")
-                    st.pyplot(wordcloud_fig)
+                    try:
+                        wordcloud_fig = generate_wordcloud(combined_description, f"Word Cloud for {topic_for_analysis}")
+                        st.pyplot(wordcloud_fig)
+                    except Exception as e:
+                        st.error(f"Error generating word cloud: {str(e)}")
+                        st.info("Try refreshing the page or check if NLTK resources are properly loaded.")
                 else:
                     st.info("No description data available for word cloud generation.")
                 
-                # Common words analysis
+                # Common words analysis with improved styling
                 st.subheader("Most Common Terms")
                 if combined_description.strip():
-                    # Preprocessing for word frequency
-                    stop_words = set(stopwords.words('english'))
-                    words = safe_tokenize(combined_description.lower())
-                    words = [word for word in words if word.isalpha() and word not in stop_words and len(word) > 2]
-                    
-                    # Calculate word frequencies
-                    word_freq = nltk.FreqDist(words)
-                    
-                    # Display as bar chart
-                    top_words = pd.DataFrame(word_freq.most_common(15), columns=['Word', 'Frequency'])
-                    
-                    fig = px.bar(
-                        top_words,
-                        x='Word',
-                        y='Frequency',
-                        color='Word',
-                        title=f'Most Common Terms in Topic: {topic_for_analysis}',
-                        height=400
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
+                    try:
+                        # Preprocessing for word frequency
+                        from nltk.corpus import stopwords
+                        stop_words = set(stopwords.words('english'))
+                        words = safe_tokenize(combined_description.lower())
+                        words = [word for word in words if word.isalpha() and word not in stop_words and len(word) > 2]
+                        
+                        # Calculate word frequencies
+                        word_freq = nltk.FreqDist(words)
+                        
+                        # Display as bar chart with improved styling
+                        top_words = pd.DataFrame(word_freq.most_common(15), columns=['Word', 'Frequency'])
+                        
+                        fig = px.bar(
+                            top_words,
+                            x='Word',
+                            y='Frequency',
+                            color='Word',
+                            title=f'Most Common Terms in Topic: {topic_for_analysis}',
+                            height=500,
+                            color_discrete_sequence=px.colors.qualitative.Bold
+                        )
+                        fig.update_layout(
+                            plot_bgcolor='white',
+                            title_font=dict(size=18, color='#103778'),
+                            font=dict(color='#000000'),
+                            xaxis=dict(
+                                title_font=dict(size=14),
+                                tickfont=dict(size=12)
+                            ),
+                            yaxis=dict(
+                                title_font=dict(size=14),
+                                tickfont=dict(size=12)
+                            )
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                    except Exception as e:
+                        st.error(f"Error analyzing common terms: {str(e)}")
+                        st.info("Try refreshing the page or check if NLTK resources are properly loaded.")
                 else:
                     st.info("No description data available for term analysis.")
                 
@@ -810,7 +1204,7 @@ def main():
                         topic_words = {}
                         for topic in topics:
                             topic_desc = ' '.join(df[df['Topic'] == topic]['Description'].fillna('').astype(str))
-                            words = set(nltk.word_tokenize(preprocess_text(topic_desc)))
+                            words = set(safe_tokenize(preprocess_text(topic_desc)))
                             topic_words[topic] = words
                         
                         # Calculate Jaccard similarity between topics
@@ -825,27 +1219,35 @@ def main():
                         
                         return similarity_matrix, topics
                     
-                    # Calculate and visualize topic similarity
-                    similarity_matrix, topics = calculate_topic_similarity(df)
-                    
-                    # Create heatmap for topic similarity
-                    fig = px.imshow(
-                        similarity_matrix,
-                        x=topics,
-                        y=topics,
-                        color_continuous_scale='Viridis',
-                        title='Topic Similarity Matrix (Jaccard Similarity)'
-                    )
-                    fig.update_layout(
-                        xaxis_tickangle=-45,
-                        height=600
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    st.write("""
-                    This heatmap shows the similarity between topics based on the words used in company descriptions.
-                    Darker colors indicate higher similarity. The diagonal is always 1.0 (perfect similarity with itself).
-                    """)
+                    try:
+                        # Calculate and visualize topic similarity
+                        similarity_matrix, topics = calculate_topic_similarity(df)
+                        
+                        # Create heatmap for topic similarity
+                        fig = px.imshow(
+                            similarity_matrix,
+                            x=topics,
+                            y=topics,
+                            color_continuous_scale='Viridis',
+                            title='Topic Similarity Matrix (Jaccard Similarity)'
+                        )
+                        fig.update_layout(
+                            xaxis_tickangle=-45,
+                            height=600,
+                            title_font=dict(size=18, color='#103778'),
+                            font=dict(color='#000000')
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                        
+                        st.markdown("""
+                        <div style="background-color: #f0f9ff; padding: 15px; border-radius: 8px; margin-top: 10px;">
+                            <p>This heatmap shows the similarity between topics based on the words used in company descriptions.
+                            Darker colors indicate higher similarity. The diagonal is always 1.0 (perfect similarity with itself).</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    except Exception as e:
+                        st.error(f"Error in topic similarity analysis: {str(e)}")
+                        st.info("Try refreshing the page or check if NLTK resources are properly loaded.")
             else:
                 st.warning("Topic analysis requires both 'Topic' and 'Description' columns in the dataset.")
         
@@ -902,7 +1304,7 @@ def main():
                                             st.write(f"**{topic_name}**:")
                                             terms_df = pd.DataFrame(topic_terms, columns=["Term", "Score"])
                                             st.dataframe(terms_df, use_container_width=True)
-                
+                                    
                                     # Visualize topic sizes
                                     st.subheader("Topic Size Distribution")
                                     topic_sizes = topic_info.iloc[:num_topics][['Topic', 'Count']]
@@ -911,7 +1313,14 @@ def main():
                                         x='Topic',
                                         y='Count',
                                         title='Number of Documents per Topic',
-                                        height=400
+                                        height=400,
+                                        color='Topic',
+                                        color_discrete_sequence=px.colors.qualitative.Bold
+                                    )
+                                    fig.update_layout(
+                                        plot_bgcolor='white',
+                                        title_font=dict(size=18, color='#103778'),
+                                        font=dict(color='#000000')
                                     )
                                     st.plotly_chart(fig, use_container_width=True)
                                     
@@ -979,8 +1388,11 @@ def main():
                                         topic_text = ' '.join([f"{row['Word']} " * int(row['Weight'] * 100) 
                                                               for _, row in topic_data.iterrows()])
                                         if topic_text.strip():
-                                            wordcloud_fig = generate_wordcloud(topic_text, f"Word Cloud for Topic {topic_num}")
-                                            st.pyplot(wordcloud_fig)
+                                            try:
+                                                wordcloud_fig = generate_wordcloud(topic_text, f"Word Cloud for Topic {topic_num}")
+                                                st.pyplot(wordcloud_fig)
+                                            except Exception as e:
+                                                st.error(f"Error generating word cloud: {str(e)}")
                                     
                                     # Topic correlation
                                     st.subheader("Topic Correlation")
@@ -996,6 +1408,11 @@ def main():
                                         y=[f"Topic {i}" for i in range(num_topics)],
                                         color_continuous_scale='Viridis',
                                         title='Topic Correlation Matrix'
+                                    )
+                                    fig.update_layout(
+                                        plot_bgcolor='white',
+                                        title_font=dict(size=18, color='#103778'),
+                                        font=dict(color='#000000')
                                     )
                                     st.plotly_chart(fig, use_container_width=True)
                                     
@@ -1053,6 +1470,14 @@ def main():
             # Check if retrieval chain is available
             if st.session_state.retrieval_chain is None:
                 st.warning("The competitor analysis system is not available. Please check your API keys and try reloading the page.")
+                
+                # Try to set up RAG again
+                if st.button("Retry Setup"):
+                    with st.spinner("Setting up competitor analysis system..."):
+                        st.session_state.retrieval_chain = setup_rag_for_competitor_analysis(df)
+                        if st.session_state.retrieval_chain is not None:
+                            st.success("Setup successful! You can now use the competitor analysis features.")
+                            st.experimental_rerun()
             else:
                 # Company input form
                 with st.form("competitor_form"):
@@ -1092,8 +1517,10 @@ def main():
                     else:
                         with st.spinner("Analyzing potential competitors..."):
                             try:
-                                # Append industry information to the description
-                                full_description = f"{company_description}\nIndustry/Sector: {industry_type}"
+                                # Append industry information and focus areas to the description
+                                full_description = f"{company_description}\nIndustry/Sector: {industry_type}\n"
+                                if similarity_focus:
+                                    full_description += f"Focus areas: {', '.join(similarity_focus)}"
                                 
                                 # Find potential competitors using RAG
                                 analysis, competitors = find_potential_competitors(
@@ -1119,13 +1546,13 @@ def main():
                                     for i, competitor in enumerate(competitors[:num_results]):
                                         col_idx = i % len(cols)
                                         with cols[col_idx]:
-                                            company_name = competitor.get('Company Name', 'Unknown')
+                                            comp_name = competitor.get('Company Name', 'Unknown')
                                             description = competitor.get('Description', 'No description available.')
                                             topic = competitor.get('Industry/Topic', 'Uncategorized')
                                             
                                             st.markdown(f"""
                                             <div style="background-color: white; padding: 15px; border-radius: 10px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-top: 4px solid #4e8d7c;">
-                                                <h4 style="color: #2c3e50; margin-top: 0;">{company_name}</h4>
+                                                <h4 style="color: #2c3e50; margin-top: 0;">{comp_name}</h4>
                                                 <p style="font-size: 14px; margin-bottom: 10px;"><strong>Industry:</strong> {topic}</p>
                                                 <p style="font-size: 14px;">{description}</p>
                                             </div>
