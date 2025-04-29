@@ -17,9 +17,6 @@ import io
 from PIL import Image
 from wordcloud import WordCloud
 import nltk
-import nltk
-nltk.download('punkt')
-nltk.download('stopwords')
 from nltk.corpus import stopwords
 import re
 import warnings
@@ -29,6 +26,48 @@ from langchain.text_splitter import CharacterTextSplitter
 from langchain.docstore.document import Document
 from langchain_community.embeddings import SentenceTransformerEmbeddings
 import os
+
+# First define NLTK resource download function
+@st.cache_resource
+def download_nltk_resources():
+    import os
+    import nltk
+    
+    try:
+        # Check if punkt exists, if not download it
+        try:
+            nltk.data.find('tokenizers/punkt')
+            print("NLTK punkt tokenizer already downloaded")
+        except LookupError:
+            nltk.download('punkt', quiet=False)
+            print("Downloaded NLTK punkt tokenizer")
+            
+        # Check if stopwords exists, if not download it
+        try:
+            nltk.data.find('corpora/stopwords')
+            print("NLTK stopwords already downloaded")
+        except LookupError:
+            nltk.download('stopwords', quiet=False)
+            print("Downloaded NLTK stopwords")
+    except Exception as e:
+        print(f"Failed to download NLTK resources: {str(e)}")
+        
+# Define safe tokenize function
+def safe_tokenize(text):
+    try:
+        return nltk.word_tokenize(text)
+    except Exception as e:
+        # Simple fallback tokenizer
+        import re
+        return re.findall(r'\b\w+\b', text.lower())
+
+# Ensure NLTK resources are downloaded first thing
+download_nltk_resources()
+
+# Set download directory explicitly
+nltk_data_dir = os.path.join(os.path.expanduser("~"), "nltk_data")
+os.makedirs(nltk_data_dir, exist_ok=True)
+nltk.data.path.append(nltk_data_dir)
 
 # Try to import Groq, fall back to OpenAI if Groq is not available
 try:
@@ -48,7 +87,22 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Make page wider and fix sidebar text
+# Show NLTK paths to debug
+st.write(f"NLTK data path: {nltk.data.path}")
+
+try:
+    nltk.data.find('tokenizers/punkt')
+    st.success("✅ Punkt tokenizer is available!")
+except LookupError as e:
+    st.error(f"❌ Punkt tokenizer is NOT available: {str(e)}")
+    
+try:
+    nltk.data.find('corpora/stopwords')
+    st.success("✅ Stopwords corpus is available!")
+except LookupError as e:
+    st.error(f"❌ Stopwords corpus is NOT available: {str(e)}")
+
+# Add your CSS styling and the rest of your code here
 st.markdown("""
 <style>
     .block-container {
@@ -101,27 +155,49 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# Initialize session state and continue with your application...
+
 @st.cache_resource
 def download_nltk_resources():
+    import os
+    import nltk
+    
     try:
-        nltk.download('punkt', quiet=True)
-        nltk.download('stopwords', quiet=True)
-        # Add any other NLTK resources you might be using
+        # Specify a download directory (optional)
+        # nltk.data.path.append('/path/to/nltk_data')  # Uncomment if needed
+        
+        # Check if punkt exists, if not download it
+        try:
+            nltk.data.find('tokenizers/punkt')
+            st.success("NLTK punkt tokenizer already downloaded")
+        except LookupError:
+            nltk.download('punkt', quiet=False)
+            st.success("Downloaded NLTK punkt tokenizer")
+            
+        # Check if stopwords exists, if not download it
+        try:
+            nltk.data.find('corpora/stopwords')
+            st.success("NLTK stopwords already downloaded")
+        except LookupError:
+            nltk.download('stopwords', quiet=False)
+            st.success("Downloaded NLTK stopwords")
+            
+        # Print NLTK data path for debugging
+        st.write(f"NLTK data path: {nltk.data.path}")
     except Exception as e:
-        st.warning(f"Failed to download NLTK resources: {str(e)}")
+        st.error(f"Failed to download NLTK resources: {str(e)}")
 
-# Call this function early in your code
-download_nltk_resources()
+def safe_tokenize(text):
+    try:
+        return nltk.word_tokenize(text)
+    except Exception as e:
+        st.warning(f"NLTK tokenization failed: {str(e)}. Using simple tokenization instead.")
+        # Simple fallback tokenizer
+        import re
+        return re.findall(r'\b\w+\b', text.lower())
 
-# Modify your tokenization code to handle potential errors
-try:
-    words = nltk.word_tokenize(combined_description.lower())
-except LookupError:
-    st.error("NLTK tokenizer resources are missing. Please ensure 'punkt' package is downloaded.")
-    words = combined_description.lower().split()  # Fallback to basic splitting
-except Exception as e:
-    st.error(f"Error during tokenization: {str(e)}")
-    words = []
+# Then use it in your code
+words = safe_tokenize(combined_description.lower())
 
 # Custom CSS for styling
 st.markdown("""
@@ -700,7 +776,7 @@ def main():
                 if combined_description.strip():
                     # Preprocessing for word frequency
                     stop_words = set(stopwords.words('english'))
-                    words = nltk.word_tokenize(combined_description.lower())
+                    words = safe_tokenize(combined_description.lower())
                     words = [word for word in words if word.isalpha() and word not in stop_words and len(word) > 2]
                     
                     # Calculate word frequencies
