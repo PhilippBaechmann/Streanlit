@@ -1153,7 +1153,6 @@ def main():
                         # Preprocessing for word frequency
                         from nltk.corpus import stopwords
                         stop_words = set(stopwords.words('english'))
-                        words = safe_tokenize(combined_description.lower())
                         words = [word for word in words if word.isalpha() and word not in stop_words and len(word) > 2]
                         
                         # Calculate word frequencies
